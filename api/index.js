@@ -55,14 +55,6 @@ module.exports = async (req, res) => {
         fs.mkdirSync(publicDir, { recursive: true });
       }
 
-      // For now, let's return a mock response for debugging
-      return res.status(200).json({
-        status: 'success',
-        message: 'MCP server received request with valid token',
-        tokenPresent: !!accessToken
-      });
-
-      /* Uncomment when ready to execute Python
       // Get the path to the MCP server script
       const scriptPath = path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py');
 
@@ -108,7 +100,6 @@ module.exports = async (req, res) => {
         // If the response isn't valid JSON, just return it as text
         return res.status(200).send(responseData);
       }
-      */
     } catch (error) {
       console.error('Error processing request:', error);
       return res.status(500).json({ error: 'Internal server error', details: error.message });
