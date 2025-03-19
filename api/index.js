@@ -1,13 +1,14 @@
 // Vercel serverless function to handle HTTP requests and bridge to MCP server
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 
 module.exports = async (req, res) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-HubSpot-Access-Token');
 
   // Handle OPTIONS request (preflight)
   if (req.method === 'OPTIONS') {
@@ -31,24 +32,42 @@ module.exports = async (req, res) => {
       // Get the request body
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
       
+      // Check for access token in header first, then in body
+      const accessToken = req.headers['x-hubspot-access-token'] || body.accessToken || body.hubspotAccessToken;
+      if (!accessToken) {
+        return res.status(400).json({
+          error: 'Missing access token',
+          message: 'HubSpot access token must be provided in either the X-HubSpot-Access-Token header or in the request body as accessToken or hubspotAccessToken'
+        });
+      }
+
       // Simple echo for debugging
       if (req.url === '/echo') {
-        return res.status(200).json(body);
+        return res.status(200).json({
+          receivedBody: body,
+          receivedToken: accessToken ? '[PRESENT]' : '[MISSING]'
+        });
+      }
+
+      // Create public directory if it doesn't exist
+      const publicDir = path.join(process.cwd(), 'public');
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
       }
 
       // For now, let's return a mock response for debugging
       return res.status(200).json({
         status: 'success',
-        message: 'MCP server received request',
-        received: body
+        message: 'MCP server received request with valid token',
+        tokenPresent: !!accessToken
       });
 
-      /* Commenting out Python execution for now to debug deployment
+      /* Uncomment when ready to execute Python
       // Get the path to the MCP server script
       const scriptPath = path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py');
 
-      // Spawn a Python process to run the MCP server
-      const pythonProcess = spawn('python', [scriptPath]);
+      // Spawn a Python process to run the MCP server, passing the access token as an argument
+      const pythonProcess = spawn('python', [scriptPath, accessToken]);
       
       // Set up response buffers
       let responseData = '';

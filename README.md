@@ -108,11 +108,48 @@ The server offers several tools for managing HubSpot objects:
   * Returns: Array of engagement objects with full metadata
 
 
+## Multi-User Support
+
+This MCP server is designed to work with multiple HubSpot users, each with their own access token. The server does not use a global environment variable for the access token.
+
+Instead, each request to the MCP server should include the user's specific access token in one of the following ways:
+
+1. In the request header: `X-HubSpot-Access-Token: your-token-here`
+2. In the request body as `accessToken`: `{"accessToken": "your-token-here"}`
+3. In the request body as `hubspotAccessToken`: `{"hubspotAccessToken": "your-token-here"}`
+
+This design allows you to store user tokens in your own backend (e.g., Supabase) and pass them along with each request.
+
+### Example Multi-User Integration
+
+```javascript
+// Example of how to use this MCP server in a multi-user setup
+async function makeHubSpotRequest(userId, action, params) {
+  // Retrieve the user's HubSpot token from your database
+  const userToken = await getUserHubSpotToken(userId); 
+
+  // Make request to MCP server with the user's token
+  const response = await fetch('https://your-mcp-server.vercel.app/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-HubSpot-Access-Token': userToken
+    },
+    body: JSON.stringify({
+      action,
+      ...params
+    })
+  });
+  
+  return await response.json();
+}
+```
+
 ## Setup
 
 ### Prerequisites
 
-You'll need a HubSpot access token. You can obtain this by:
+You'll need a HubSpot access token for each user. You can obtain this by:
 1. Creating a private app in your HubSpot account:
    Follow the [HubSpot Private Apps Guide](https://developers.hubspot.com/docs/guides/apps/private-apps/overview)
    - Go to your HubSpot account settings
@@ -159,7 +196,6 @@ docker build -t mcp-hubspot .
 Run the container:
 ```bash
 docker run \
-  -e HUBSPOT_ACCESS_TOKEN=your_access_token_here \
   buryhuang/mcp-hubspot:latest
 ```
 
@@ -203,8 +239,6 @@ npx -y @smithery/cli@latest install mcp-hubspot --client claude
         "run",
         "-i",
         "--rm",
-        "-e",
-        "HUBSPOT_ACCESS_TOKEN=your_access_token_here",
         "buryhuang/mcp-hubspot:latest"
       ]
     }

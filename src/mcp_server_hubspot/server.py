@@ -31,14 +31,13 @@ def convert_datetime_fields(obj: Any) -> Any:
     return obj
 
 class HubSpotClient:
-    def __init__(self, access_token: Optional[str] = None):
-        access_token = access_token or os.getenv("HUBSPOT_ACCESS_TOKEN")
+    def __init__(self, access_token: str):
         logger.debug(f"Using access token: {'[MASKED]' if access_token else 'None'}")
         if not access_token:
-            raise ValueError("HubSpot access token is required. It can be provided as an argument or via HUBSPOT_ACCESS_TOKEN environment variable")
+            raise ValueError("HubSpot access token is required. It must be provided as an argument.")
         
         # Initialize HubSpot client with the provided token
-        # This allows for multi-user support by passing user-specific tokens from Supabase
+        # This allows for multi-user support by passing user-specific tokens
         self.client = HubSpot(access_token=access_token)
 
     def get_contacts(self) -> str:
@@ -183,12 +182,12 @@ class HubSpotClient:
             logger.error(f"Exception: {str(e)}")
             return json.dumps({"error": str(e)})
 
-async def main(access_token: Optional[str] = None):
+async def main(access_token: str):
     """
     Run the HubSpot MCP server.
     
     Args:
-        access_token: Optional HubSpot access token. If not provided, will attempt to get from HUBSPOT_ACCESS_TOKEN env var.
+        access_token: HubSpot access token
     
     Note:
         This server requires the following HubSpot scopes:
@@ -473,4 +472,8 @@ async def main(access_token: Optional[str] = None):
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main()) 
+    import sys
+    if len(sys.argv) != 2:
+        print("Usage: python server.py <access_token>")
+        sys.exit(1)
+    asyncio.run(main(sys.argv[1]))
