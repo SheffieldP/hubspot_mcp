@@ -35,37 +35,44 @@ class HubSpotClient:
         access_token = access_token or os.getenv("HUBSPOT_ACCESS_TOKEN")
         logger.debug(f"Using access token: {'[MASKED]' if access_token else 'None'}")
         if not access_token:
-            raise ValueError("HUBSPOT_ACCESS_TOKEN environment variable is required")
+            raise ValueError("HubSpot access token is required. It can be provided as an argument or via HUBSPOT_ACCESS_TOKEN environment variable")
         
+        # Initialize HubSpot client with the provided token
+        # This allows for multi-user support by passing user-specific tokens from Supabase
         self.client = HubSpot(access_token=access_token)
 
     def get_contacts(self) -> str:
-        """Get all contacts from HubSpot"""
+        """Get all contacts from HubSpot (requires optional crm.objects.contacts.read scope)"""
         try:
             contacts = self.client.crm.contacts.get_all()
             contacts_dict = [contact.to_dict() for contact in contacts]
             converted_contacts = convert_datetime_fields(contacts_dict)
             return json.dumps(converted_contacts)
         except ApiException as e:
+            logger.error(f"API Exception in get_contacts: {str(e)}")
             return json.dumps({"error": str(e)})
         except Exception as e:
+            logger.error(f"Exception in get_contacts: {str(e)}")
             return json.dumps({"error": str(e)})
 
     def get_companies(self) -> str:
-        """Get all companies from HubSpot"""
+        """Get all companies from HubSpot (requires optional crm.objects.companies.read scope)"""
         try:
             companies = self.client.crm.companies.get_all()
             companies_dict = [company.to_dict() for company in companies]
             converted_companies = convert_datetime_fields(companies_dict)
             return json.dumps(converted_companies)
         except ApiException as e:
+            logger.error(f"API Exception in get_companies: {str(e)}")
             return json.dumps({"error": str(e)})
         except Exception as e:
+            logger.error(f"Exception in get_companies: {str(e)}")
             return json.dumps({"error": str(e)})
 
     def get_company_activity(self, company_id: str) -> str:
-        """Get activity history for a specific company"""
+        """Get activity history for a specific company (requires optional crm.objects.companies.read scope)"""
         try:
+            # Note: This method only requires standard read scopes, not sensitive scopes
             # Step 1: Get all engagement IDs associated with the company using CRM Associations v4 API
             associated_engagements = self.client.crm.associations.v4.basic_api.get_page(
                 object_type="companies",
@@ -177,7 +184,25 @@ class HubSpotClient:
             return json.dumps({"error": str(e)})
 
 async def main(access_token: Optional[str] = None):
-    """Run the HubSpot MCP server."""
+    """
+    Run the HubSpot MCP server.
+    
+    Args:
+        access_token: Optional HubSpot access token. If not provided, will attempt to get from HUBSPOT_ACCESS_TOKEN env var.
+    
+    Note:
+        This server requires the following HubSpot scopes:
+        Required:
+        - oauth
+        
+        Optional:
+        - crm.dealsplits.read_write
+        - crm.objects.companies.read
+        - crm.objects.companies.write
+        - crm.objects.contacts.read
+        - crm.objects.contacts.write
+        - crm.objects.deals.read
+    """
     logger.info("Server starting")
     hubspot = HubSpotClient(access_token)
     server = Server("hubspot-manager")
@@ -188,13 +213,13 @@ async def main(access_token: Optional[str] = None):
             types.Resource(
                 uri=AnyUrl("hubspot://hubspot_contacts"),
                 name="HubSpot Contacts",
-                description="List of HubSpot contacts",
+                description="List of HubSpot contacts (requires optional crm.objects.contacts.read scope)",
                 mimeType="application/json",
             ),
             types.Resource(
                 uri=AnyUrl("hubspot://hubspot_companies"),
                 name="HubSpot Companies", 
-                description="List of HubSpot companies",
+                description="List of HubSpot companies (requires optional crm.objects.companies.read scope)",
                 mimeType="application/json",
             ),
         ]
@@ -218,7 +243,7 @@ async def main(access_token: Optional[str] = None):
         return [
             types.Tool(
                 name="hubspot_get_contacts",
-                description="Get contacts from HubSpot",
+                description="Get contacts from HubSpot (requires optional crm.objects.contacts.read scope)",
                 inputSchema={
                     "type": "object",
                     "properties": {},
@@ -226,7 +251,7 @@ async def main(access_token: Optional[str] = None):
             ),
             types.Tool(
                 name="hubspot_create_contact",
-                description="Create a new contact in HubSpot",
+                description="Create a new contact in HubSpot (requires optional crm.objects.contacts.write scope)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -240,7 +265,7 @@ async def main(access_token: Optional[str] = None):
             ),
             types.Tool(
                 name="hubspot_get_companies",
-                description="Get companies from HubSpot",
+                description="Get companies from HubSpot (requires optional crm.objects.companies.read scope)",
                 inputSchema={
                     "type": "object",
                     "properties": {},
@@ -248,7 +273,7 @@ async def main(access_token: Optional[str] = None):
             ),
             types.Tool(
                 name="hubspot_create_company",
-                description="Create a new company in HubSpot",
+                description="Create a new company in HubSpot (requires optional crm.objects.companies.write scope)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -260,7 +285,7 @@ async def main(access_token: Optional[str] = None):
             ),
             types.Tool(
                 name="hubspot_get_company_activity",
-                description="Get activity history for a specific company",
+                description="Get activity history for a specific company (requires optional crm.objects.companies.read scope)",
                 inputSchema={
                     "type": "object",
                     "properties": {

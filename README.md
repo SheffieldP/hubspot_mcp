@@ -123,17 +123,15 @@ You'll need a HubSpot access token. You can obtain this by:
      - Add description
      - Upload logo (optional)
    - Define required scopes:
-     - tickets
-     - crm.objects.contacts.write
-     - crm.objects.contacts.sensitive.read
-     - crm.objects.companies.sensitive.read
-     - sales-email-read
-     - crm.objects.deals.sensitive.read
-     - crm.objects.companies.write
+     - oauth (required)
+     
+   - Optional scopes:
+     - crm.dealsplits.read_write
      - crm.objects.companies.read
-     - crm.objects.deals.read
-     - crm.objects.deals.write
+     - crm.objects.companies.write
      - crm.objects.contacts.read
+     - crm.objects.contacts.write
+     - crm.objects.deals.read
    - Review and create the app
    - Copy the generated access token
 

@@ -4,6 +4,10 @@ startCommand:
   type: stdio
   configSchema:
     # JSON Schema defining the configuration options for the MCP.
+    # This MCP server requires the following HubSpot scopes:
+    # Required: oauth
+    # Optional: crm.dealsplits.read_write crm.objects.companies.read crm.objects.companies.write 
+    #          crm.objects.contacts.read crm.objects.contacts.write crm.objects.deals.read
     type: object
     required:
       - hubspotAccessToken
