@@ -1,3 +1,27 @@
 run = "npm start"
 entrypoint = "server.js"
 language = "nodejs"
+
+[nix]
+channel = "stable-22_11"
+
+[env]
+PORT = "3000"
+
+[packager]
+language = "nodejs"
+
+[packager.features]
+packageSearch = true
+guessImports = true
+
+[languages.js]
+pattern = "**/*.js"
+syntax = "javascript"
+
+[languages.js.languageServer]
+start = [ "typescript-language-server", "--stdio" ]
+
+[deployment]
+run = ["sh", "-c", "npm start"]
+deploymentTarget = "cloudrun"

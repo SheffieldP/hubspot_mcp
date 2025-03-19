@@ -1,7 +1,8 @@
 { pkgs }: {
   deps = [
     pkgs.nodejs-18_x
-    pkgs.python39
-    pkgs.python39Packages.pip
+    pkgs.nodePackages.npm
+    pkgs.python310
+    pkgs.python310Packages.pip
   ];
 }
