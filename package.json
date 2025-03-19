@@ -4,11 +4,8 @@
   "description": "HubSpot MCP Server for Windsurf",
   "main": "api/index.js",
   "scripts": {
-    "start": "node api/index.js"
-  },
-  "dependencies": {
-    "child_process": "^1.0.2",
-    "path": "^0.12.7"
+    "start": "node api/index.js",
+    "build": "chmod +x ./build.sh && ./build.sh"
   },
   "engines": {
     "node": ">=14"
