@@ -1,9 +1,13 @@
-// Vercel serverless function to handle HTTP requests and bridge to MCP server
+// API handler for both Vercel serverless and Replit
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-module.exports = async (req, res) => {
+// Detect if running on Vercel or Replit
+const isVercel = process.env.VERCEL === '1';
+
+// Express middleware style handler for Replit
+const handleRequest = async (req, res) => {
   // CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,17 +21,17 @@ module.exports = async (req, res) => {
   }
 
   // Health check endpoint
-  if (req.method === 'GET' && req.url === '/health') {
+  if (req.method === 'GET' && (req.url === '/health' || req.path === '/health')) {
     return res.status(200).json({ status: 'ok' });
   }
 
   // Test endpoint
-  if (req.method === 'GET' && req.url === '/ping') {
+  if (req.method === 'GET' && (req.url === '/ping' || req.path === '/ping')) {
     return res.status(200).send('pong');
   }
 
   // Debug endpoint
-  if (req.method === 'GET' && req.url === '/debug') {
+  if (req.method === 'GET' && (req.url === '/debug' || req.path === '/debug')) {
     const env = process.env;
     const pythonInfo = {};
     
@@ -53,7 +57,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       nodeVersion: process.version,
       cwd: process.cwd(),
-      files: fs.existsSync('/vercel/path0/src') ? fs.readdirSync('/vercel/path0/src').join(', ') : 'No src directory',
+      environment: isVercel ? 'Vercel' : 'Replit/Other',
       pythonInfo,
       serverPath: path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py'),
       serverExists: fs.existsSync(path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py'))
@@ -76,7 +80,7 @@ module.exports = async (req, res) => {
       }
 
       // Simple echo for debugging
-      if (req.url === '/echo') {
+      if (req.url === '/echo' || req.path === '/echo') {
         return res.status(200).json({
           receivedBody: body,
           receivedToken: accessToken ? '[PRESENT]' : '[MISSING]'
@@ -89,81 +93,83 @@ module.exports = async (req, res) => {
         fs.mkdirSync(publicDir, { recursive: true });
       }
 
-      // Due to Vercel serverless limitations, we're providing a mock response for now
-      if (body.action === 'get_contacts') {
-        return res.status(200).json({
-          status: 'success',
-          message: 'Mock contacts data',
-          data: [
-            { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com' },
-            { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com' }
-          ]
-        });
-      } else if (body.action === 'get_companies') {
-        return res.status(200).json({
-          status: 'success',
-          message: 'Mock companies data',
-          data: [
-            { id: '101', name: 'Acme Corp', domain: 'acme.com' },
-            { id: '102', name: 'Globex', domain: 'globex.com' }
-          ]
-        });
+      // Use mock data on Vercel, real data elsewhere
+      if (isVercel) {
+        // Mock responses for Vercel
+        if (body.action === 'get_contacts') {
+          return res.status(200).json({
+            status: 'success',
+            message: 'Mock contacts data',
+            data: [
+              { id: '1', firstName: 'John', lastName: 'Doe', email: 'john@example.com' },
+              { id: '2', firstName: 'Jane', lastName: 'Smith', email: 'jane@example.com' }
+            ]
+          });
+        } else if (body.action === 'get_companies') {
+          return res.status(200).json({
+            status: 'success',
+            message: 'Mock companies data',
+            data: [
+              { id: '101', name: 'Acme Corp', domain: 'acme.com' },
+              { id: '102', name: 'Globex', domain: 'globex.com' }
+            ]
+          });
+        } else {
+          // For any other action, return a generic success response
+          return res.status(200).json({
+            status: 'success',
+            message: `Mock response for action: ${body.action}`,
+            tokenValid: true
+          });
+        }
       } else {
-        // For any other action, return a generic success response
-        return res.status(200).json({
-          status: 'success',
-          message: `Mock response for action: ${body.action}`,
-          tokenValid: true
+        // Real Python execution (works on Replit but not Vercel)
+        // Get the path to the MCP server script
+        const scriptPath = path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py');
+
+        // Spawn a Python process to run the MCP server, passing the access token as an argument
+        const pythonProcess = spawn('python', [scriptPath, accessToken]);
+        
+        // Set up response buffers
+        let responseData = '';
+        let errorData = '';
+
+        // Send the input to the Python process
+        pythonProcess.stdin.write(JSON.stringify(body) + '\n');
+        pythonProcess.stdin.end();
+
+        // Listen for data from the Python process
+        pythonProcess.stdout.on('data', (data) => {
+          responseData += data.toString();
         });
-      }
 
-      /* This code is disabled due to Vercel Python execution challenges
-      // Get the path to the MCP server script
-      const scriptPath = path.join(process.cwd(), 'src', 'mcp_server_hubspot', 'server.py');
-
-      // Spawn a Python process to run the MCP server, passing the access token as an argument
-      const pythonProcess = spawn('python', [scriptPath, accessToken]);
-      
-      // Set up response buffers
-      let responseData = '';
-      let errorData = '';
-
-      // Send the input to the Python process
-      pythonProcess.stdin.write(JSON.stringify(body) + '\n');
-      pythonProcess.stdin.end();
-
-      // Listen for data from the Python process
-      pythonProcess.stdout.on('data', (data) => {
-        responseData += data.toString();
-      });
-
-      // Listen for errors
-      pythonProcess.stderr.on('data', (data) => {
-        errorData += data.toString();
-      });
-
-      // Wait for the process to exit
-      await new Promise((resolve) => {
-        pythonProcess.on('close', (code) => {
-          resolve(code);
+        // Listen for errors
+        pythonProcess.stderr.on('data', (data) => {
+          errorData += data.toString();
         });
-      });
 
-      // If there was an error, return it
-      if (errorData) {
-        console.error('Python error:', errorData);
-        return res.status(500).json({ error: 'Internal server error', details: errorData });
-      }
+        // Wait for the process to exit
+        await new Promise((resolve) => {
+          pythonProcess.on('close', (code) => {
+            resolve(code);
+          });
+        });
 
-      // Try to parse the response as JSON
-      try {
-        const jsonResponse = JSON.parse(responseData);
-        return res.status(200).json(jsonResponse);
-      } catch (e) {
-        // If the response isn't valid JSON, just return it as text
-        return res.status(200).send(responseData);
+        // If there was an error, return it
+        if (errorData) {
+          console.error('Python error:', errorData);
+          return res.status(500).json({ error: 'Internal server error', details: errorData });
+        }
+
+        // Try to parse the response as JSON
+        try {
+          const jsonResponse = JSON.parse(responseData);
+          return res.status(200).json(jsonResponse);
+        } catch (e) {
+          // If the response isn't valid JSON, just return it as text
+          return res.status(200).send(responseData);
+        }
       }
-      */
     } catch (error) {
       console.error('Error processing request:', error);
       return res.status(500).json({ error: 'Internal server error', details: error.message });
@@ -173,3 +179,6 @@ module.exports = async (req, res) => {
   // If we get here, the method is not supported
   return res.status(405).json({ error: 'Method not allowed' });
 };
+
+// Export for both Express and Vercel
+module.exports = handleRequest;
